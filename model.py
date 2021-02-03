@@ -30,6 +30,7 @@ class DQN(nn.Module):
     def forward(self, x):
         x = self.relu1(self.bn1(self.conv1(x)))
         x = self.relu2(self.bn2(self.conv2(x)))
-        x = self.relu3(self.bn3(self.conv3(x)))
+        xconv = self.conv3(x)
+        x = self.relu3(self.bn3(xconv))
 
-        return self.head(x.view(x.size(0), -1))
+        return self.head(x.view(x.size(0), -1)), self.head(xconv.view(xconv.size(0), -1))

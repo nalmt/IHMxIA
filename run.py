@@ -9,6 +9,7 @@ import numpy as np
 from moviepy.editor import ImageSequenceClip
 
 import umap
+from utils import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -41,7 +42,17 @@ def parsearg():
     return parser.parse_args()
 
 
+def positive_saliency(gradient):
+    pos_saliency = np.maximum(0, gradient)
+    return pos_saliency
+
+def negative_saliency(gradient):
+    neg_saliency = np.minimum(0, gradient)
+    return neg_saliency
+
 def run():
+    mydata = []
+    colors = []
     print("Making videos")
     for epoch in range(args.n_epochs):
         env.game.new_episode()
@@ -50,13 +61,13 @@ def run():
 
         while not env.game.is_episode_finished():
             state = env.get_state()
-
             # TODO: Change this function to return a correct grad
-            best_action_index, grads = agent.get_best_action_wGrad(state)
-
+            best_action_index, grads, xconv = agent.get_best_action_wGrad(state)
+            grads  = positive_saliency(grads)
             env.game.make_action(agent.actions[best_action_index], args.frame_repeat)
+            colors.append(best_action_index)
             state = np.squeeze(state)
-
+            mydata.append(xconv)
             # Cancel normalization
             state *= 254 * 254
             state = state.astype(np.int8)
@@ -69,12 +80,14 @@ def run():
             grads = format_saliency(saliency)
 
             # If You want to enhance this display you can do
-            # grads =  format_saliency_bprop(img)
+            #grads = format_saliency_bprop(saliency)
 
             imgs.append(merge_img(state, grads, nb))
 
     make_movie(imgs, "video/video_" + str(epoch + 1) + ".mp4")
+    embedding = umap.UMAP(n_neighbors=2, min_dist=0.3, metric='correlation').fit_transform(mydata)
 
+    embedding2csv(embedding, colors)
 
 def make_movie(imgs, filename):
     clip = ImageSequenceClip(imgs, fps=int(30 / args.frame_repeat))
@@ -117,7 +130,7 @@ def format_saliency_bprop(img):
 
 def format_saliency(img):
     img = img.convert("RGBA")
-    img.putalpha(60)
+    img.putalpha(80)
     return np.asarray(img)
 
 

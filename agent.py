@@ -1,6 +1,6 @@
 from random import random, randint
 import torch
-
+import umap
 from model import DQN
 from replayMemory import ReplayMemory
 import numpy as np
@@ -47,14 +47,20 @@ class DQNAgent:
 
     def get_best_action_wGrad(self, state):
         state = torch.from_numpy(state).to(device)
-        q = self.model(state)
-
+        state.requires_grad = True
+        q, xconv = self.model(state)
         m, index = torch.max(q, 1)
         action = index.item()
 
-        grads = torch.zeros([112, 64], device="cpu", requires_grad=False).numpy()
+        target = torch.FloatTensor([self.actions[index]])
+        q.backward(gradient=target)
+        state.detach_()
+
+        grads = np.squeeze(state.grad.data.cpu().numpy())
+        xconv = np.squeeze(xconv.cpu().detach().numpy()).tolist()
+        #grads = torch.zeros([112, 64], device="cpu", requires_grad=False).numpy()
 
         grads *= 254
         grads = grads.astype(np.int8)
 
-        return action, grads.transpose((1, 0))
+        return action, grads.transpose((1, 0)), xconv
